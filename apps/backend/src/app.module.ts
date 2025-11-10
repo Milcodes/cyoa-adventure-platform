@@ -9,6 +9,7 @@ import { GameplayModule } from './api/gameplay/gameplay.module';
 import { StoryModule } from './api/story/story.module';
 import { TranslationModule } from './api/translation/translation.module';
 import { MediaModule } from './api/media/media.module';
+import { ModerationModule } from './api/moderation/moderation.module';
 import { JwtAuthGuard, RolesGuard } from './common/guards';
 
 @Module({
@@ -25,6 +26,7 @@ import { JwtAuthGuard, RolesGuard } from './common/guards';
     StoryModule,
     TranslationModule,
     MediaModule,
+    ModerationModule,
   ],
   providers: [
     {

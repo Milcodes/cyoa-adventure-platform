@@ -16,10 +16,9 @@ async function seedExampleStories() {
     update: {},
     create: {
       email: 'example.author@cyoa.hu',
-      username: 'ExampleAuthor',
-      full_name: 'Példa Szerző',
+      display_name: 'ExampleAuthor',
       role: UserRole.author,
-      password_hash: '$2b$10$example', // Példa hash
+      pw_hash: '$2b$10$example', // Példa hash
       preferred_language: 'hu',
     },
   });
@@ -240,7 +239,7 @@ Egy meglepő látvány tárul eléd: egy idős kereskedő áll egy asztal mellet
 
 **Fontos**: A végső ajtóhoz páncél kell!`,
       media_ref: 'stories/treasure-hunt/weapon_shop.jpg',
-      layout: MediaLayout.image_left,
+      layout: MediaLayout.image,
       effects: [],
       choices: [
         {
@@ -548,7 +547,7 @@ Kilépve a kastélyból, eszembe jut: **ha vásároltam volna páncélt a boltba
   console.log('\n🎮 Example story seeding complete!');
   console.log(`\n📖 Story: ${treasureHuntStory.title}`);
   console.log(`🔗 Slug: ${treasureHuntStory.slug}`);
-  console.log(`👤 Author: ${author.username}`);
+  console.log(`👤 Author: ${author.display_name}`);
 }
 
 async function main() {
