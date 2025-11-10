@@ -6,6 +6,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './api/auth/auth.module';
 import { GameEngineModule } from './api/game-engine/game-engine.module';
 import { GameplayModule } from './api/gameplay/gameplay.module';
+import { StoryModule } from './api/story/story.module';
 import { JwtAuthGuard, RolesGuard } from './common/guards';
 
 @Module({
@@ -19,6 +20,7 @@ import { JwtAuthGuard, RolesGuard } from './common/guards';
     AuthModule,
     GameEngineModule,
     GameplayModule,
+    StoryModule,
   ],
   providers: [
     {
