@@ -81,7 +81,8 @@ export default function CreatorDashboard() {
     setError('')
 
     try {
-      const { data } = await apiClient.get('/stories?my_stories=true')
+      // Use correct backend endpoint
+      const { data } = await apiClient.get('/stories/my-stories')
       setStories(data)
     } catch (err: any) {
       setError('Történetek betöltése sikertelen')
