@@ -100,10 +100,27 @@ export default function PlayStoryPage() {
       }
 
       if (!gameSave) {
-        // Start new game
-        const { data } = await apiClient.post(`/gameplay/stories/${storyId}/start`)
-        gameSave = data
-        updateGameState({ saveId: data.id, currentStoryId: storyId })
+        // Start new game - use correct API format
+        const { data } = await apiClient.post(`/gameplay/start`, { storyId })
+
+        // Backend returns: { saveId, gameState, currentNode, availableChoices }
+        // Transform to internal format
+        gameSave = {
+          save_id: data.saveId,
+          current_node_id: data.currentNode.id,
+          inventory: data.gameState.inventory || [],
+          wallets: data.gameState.wallets || [],
+          stats: data.gameState.stats || [],
+          flags: data.gameState.flags || []
+        }
+
+        updateGameState({ saveId: data.saveId, currentStoryId: storyId })
+        setGameState(gameSave)
+
+        // Set current node directly from response (no need for extra API call)
+        setCurrentNode(data.currentNode)
+        setLoading(false)
+        return
       }
 
       setGameState(gameSave)
@@ -119,13 +136,13 @@ export default function PlayStoryPage() {
 
   const loadNode = async (nodeId: string) => {
     try {
-      const { data } = await apiClient.get(`/stories/${storyId}/nodes/${nodeId}`)
+      const { data } = await apiClient.get(`/gameplay/node/${nodeId}`)
       setCurrentNode(data)
 
       // Auto progression if configured
       if (data.auto_progression_delay && data.choices.length === 1) {
         setTimeout(() => {
-          handleChoice(data.choices[0])
+          handleChoice(data.choices[0], 0)
         }, data.auto_progression_delay * 1000)
       }
     } catch (err: any) {
@@ -133,29 +150,43 @@ export default function PlayStoryPage() {
     }
   }
 
-  const handleChoice = async (choice: Choice) => {
+  const handleChoice = async (choice: Choice, choiceIndex: number) => {
     if (processing || !gameState) return
 
     setProcessing(true)
     setError('')
 
     try {
+      // API expects saveId and choiceIndex (number)
       const { data } = await apiClient.post(
-        `/gameplay/saves/${gameState.save_id}/choose`,
-        { choice_id: choice.id }
+        `/gameplay/choice`,
+        {
+          saveId: gameState.save_id,
+          choiceIndex: choiceIndex
+        }
       )
 
-      // Update game state
-      setGameState(data)
+      // Backend returns: { transition, gameState, currentNode, availableChoices }
+      // Transform to internal format
+      const updatedGameState = {
+        save_id: gameState.save_id,
+        current_node_id: data.gameState.currentNodeId,
+        inventory: data.gameState.inventory || [],
+        wallets: data.gameState.wallets || [],
+        stats: data.gameState.stats || [],
+        flags: data.gameState.flags || []
+      }
+
+      setGameState(updatedGameState)
       updateGameState({
-        inventory: data.inventory,
-        wallets: data.wallets,
-        stats: data.stats,
-        flags: data.flags
+        inventory: data.gameState.inventory,
+        wallets: data.gameState.wallets,
+        stats: data.gameState.stats,
+        flags: data.gameState.flags
       })
 
-      // Load next node
-      await loadNode(data.current_node_id)
+      // Set next node directly from response (no need for extra API call)
+      setCurrentNode(data.currentNode)
     } catch (err: any) {
       setError(err.response?.data?.message || 'Választás végrehajtása sikertelen')
     } finally {
@@ -328,7 +359,7 @@ export default function PlayStoryPage() {
                     return (
                       <button
                         key={choice.id}
-                        onClick={() => handleChoice(choice)}
+                        onClick={() => handleChoice(choice, index)}
                         disabled={!available || processing}
                         className={`w-full game-panel p-4 text-left hover:border-primary-500 transition-all transform hover:translate-x-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-x-0 ${
                           processing ? 'animate-pulse' : ''

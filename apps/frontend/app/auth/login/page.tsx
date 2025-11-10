@@ -22,7 +22,12 @@ export default function LoginPage() {
 
     try {
       const { data } = await apiClient.post('/auth/login', { email, password })
-      login(data.accessToken, data.user)
+      // Backend sends access_token (snake_case)
+      login(data.access_token, data.user)
+
+      // Set cookie for middleware
+      document.cookie = `token=${data.access_token}; path=/; max-age=86400; SameSite=Lax`
+
       router.push('/dashboard')
     } catch (err: any) {
       setError(err.response?.data?.message || 'Bejelentkezés sikertelen')

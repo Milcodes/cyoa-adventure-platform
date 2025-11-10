@@ -26,11 +26,19 @@ export const useAuthStore = create<AuthState>()(
       login: (token, user) => {
         localStorage.setItem('token', token)
         localStorage.setItem('user', JSON.stringify(user))
+        // Also set cookie for server-side middleware
+        if (typeof document !== 'undefined') {
+          document.cookie = `token=${token}; path=/; max-age=86400; SameSite=Lax`
+        }
         set({ token, user, isAuthenticated: true })
       },
       logout: () => {
         localStorage.removeItem('token')
         localStorage.removeItem('user')
+        // Remove cookie
+        if (typeof document !== 'undefined') {
+          document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+        }
         set({ token: null, user: null, isAuthenticated: false })
       },
       updateUser: (user) => {
