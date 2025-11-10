@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cyoa-config
+  namespace: cyoa-platform
+data:
+  # Database Configuration
+  POSTGRES_HOST: "postgresql-service"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "cyoa_platform"
+
+  # Redis Configuration
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+
+  # MinIO Configuration
+  MINIO_ENDPOINT: "minio-service"
+  MINIO_PORT: "9000"
+  MINIO_USE_SSL: "false"
+  MINIO_BUCKET: "cyoa-media"
+
+  # Application Configuration
+  NODE_ENV: "production"
+  FRONTEND_URL: "https://cyoa.yourdomain.com"
+  BACKEND_URL: "https://api.cyoa.yourdomain.com"
+
+  # Feature Flags
+  ENABLE_SWAGGER: "false"
+  ENABLE_CORS: "true"
+
+  # Rate Limiting
+  RATE_LIMIT_TTL: "60"
+  RATE_LIMIT_MAX: "100"
