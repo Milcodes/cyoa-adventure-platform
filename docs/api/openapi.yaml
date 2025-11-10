@@ -1,0 +1,1472 @@
+openapi: 3.0.3
+info:
+  title: CYOA Adventure Platform API
+  version: 1.0.0
+  description: |
+    Multi-language, community-driven interactive story platform with game engine,
+    localization system, and moderation workflow.
+
+    **Features:**
+    - JWT Authentication with role-based access control
+    - Multi-language story content with fallback mechanism
+    - Game engine (conditions, effects, dice rolls)
+    - Author/Creator platform
+    - Moderation workflow
+    - Inventory and wallet system
+    - Save/Load system
+    - Minigame integration
+
+  contact:
+    name: Milcodes
+    url: https://github.com/Milcodes/cyoa-adventure-platform
+
+servers:
+  - url: https://api.cyoa-platform.dev/v1
+    description: Production API
+  - url: http://localhost:4000/v1
+    description: Local Development
+
+tags:
+  - name: Authentication
+    description: User registration, login, token management
+  - name: Stories
+    description: Browse and discover stories
+  - name: Gameplay
+    description: Play stories, make choices, roll dice
+  - name: Author
+    description: Create and manage stories (author role)
+  - name: Moderator
+    description: Content moderation (moderator role)
+  - name: Admin
+    description: Administrative operations (admin role)
+  - name: Localization
+    description: Language and translation management
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ==================== AUTHENTICATION ====================
+  /auth/register:
+    post:
+      tags: [Authentication]
+      summary: Register new user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, display_name]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: player@example.com
+                password:
+                  type: string
+                  minLength: 8
+                  example: securePassword123
+                display_name:
+                  type: string
+                  example: John Doe
+                preferred_language:
+                  type: string
+                  enum: [hu, de, en, es, fr]
+                  default: hu
+                role:
+                  type: string
+                  enum: [player, author]
+                  default: player
+                  description: Authors can create stories, players only play
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  refresh_token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Email already exists
+
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Login user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  refresh_token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Invalid credentials
+
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Refresh access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+        '401':
+          description: Invalid refresh token
+
+  /auth/me:
+    get:
+      tags: [Authentication]
+      summary: Get current user profile
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /users/me/language:
+    post:
+      tags: [Authentication]
+      summary: Update preferred language
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [language]
+              properties:
+                language:
+                  type: string
+                  enum: [hu, de, en, es, fr]
+      responses:
+        '200':
+          description: Language updated
+
+  # ==================== STORIES (PUBLIC) ====================
+  /stories:
+    get:
+      tags: [Stories]
+      summary: List published stories
+      security: []
+      parameters:
+        - name: genre
+          in: query
+          schema:
+            type: string
+            enum: [fantasy, sci-fi, horror, mystery, adventure, romance]
+        - name: language
+          in: query
+          description: Filter by available language
+          schema:
+            type: string
+            enum: [hu, de, en, es, fr]
+        - name: q
+          in: query
+          description: Search query (title, synopsis)
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: Story list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stories:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/StoryListItem'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /stories/{id}:
+    get:
+      tags: [Stories]
+      summary: Get story details
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/StoryId'
+        - name: language
+          in: query
+          description: Preferred language for content
+          schema:
+            type: string
+            enum: [hu, de, en, es, fr]
+      responses:
+        '200':
+          description: Story details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Story'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ==================== GAMEPLAY ====================
+  /play/{storyId}/state:
+    get:
+      tags: [Gameplay]
+      summary: Get current play state
+      parameters:
+        - $ref: '#/components/parameters/StoryId'
+        - name: language
+          in: query
+          description: Preferred language
+          schema:
+            type: string
+            enum: [hu, de, en, es, fr]
+      responses:
+        '200':
+          description: Current game state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayState'
+
+  /play/{storyId}/choice:
+    post:
+      tags: [Gameplay]
+      summary: Make a choice
+      parameters:
+        - $ref: '#/components/parameters/StoryId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [choiceId]
+              properties:
+                choiceId:
+                  type: string
+                  example: to_house
+                language:
+                  type: string
+                  enum: [hu, de, en, es, fr]
+      responses:
+        '200':
+          description: Updated game state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayState'
+        '400':
+          description: Choice conditions not met
+        '404':
+          description: Choice not found
+
+  /play/{storyId}/roll:
+    post:
+      tags: [Gameplay]
+      summary: Roll dice
+      parameters:
+        - $ref: '#/components/parameters/StoryId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [formula]
+              properties:
+                formula:
+                  type: string
+                  example: 2d6+3
+                  description: Dice formula (XdY+Z or XdY+STAT)
+                reason:
+                  type: string
+                  example: Trap awareness check
+      responses:
+        '200':
+          description: Roll result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RollResult'
+
+  /play/{storyId}/save:
+    post:
+      tags: [Gameplay]
+      summary: Create manual save
+      parameters:
+        - $ref: '#/components/parameters/StoryId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                slot:
+                  type: integer
+                  minimum: 1
+                  maximum: 3
+                  example: 1
+                  description: Save slot (1-3), 0 is auto-save
+      responses:
+        '201':
+          description: Save created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  save_id:
+                    type: string
+                  created_at:
+                    type: string
+                    format: date-time
+
+  /play/{storyId}/saves:
+    get:
+      tags: [Gameplay]
+      summary: List saves for story
+      parameters:
+        - $ref: '#/components/parameters/StoryId'
+      responses:
+        '200':
+          description: Save list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  saves:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SaveSlot'
+
+  /play/{storyId}/saves/{slot}:
+    post:
+      tags: [Gameplay]
+      summary: Load save
+      parameters:
+        - $ref: '#/components/parameters/StoryId'
+        - name: slot
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 3
+      responses:
+        '200':
+          description: Save loaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayState'
+
+  /play/{storyId}/minigame/score:
+    post:
+      tags: [Gameplay]
+      summary: Submit minigame score
+      parameters:
+        - $ref: '#/components/parameters/StoryId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [gameKey, score, signature, sessionId]
+              properties:
+                gameKey:
+                  type: string
+                  example: puzzle_cave
+                score:
+                  type: integer
+                  example: 850
+                signature:
+                  type: string
+                  description: HMAC signature for score verification
+                sessionId:
+                  type: string
+                  description: Unique session ID (replay protection)
+      responses:
+        '200':
+          description: Score processed and effects applied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  effects:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Effect'
+                  new_state:
+                    $ref: '#/components/schemas/PlayState'
+        '400':
+          description: Invalid signature or replay detected
+
+  # ==================== AUTHOR ====================
+  /author/stories:
+    get:
+      tags: [Author]
+      summary: List my stories (author only)
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, pending_review, published, archived]
+      responses:
+        '200':
+          description: Author's stories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Story'
+        '403':
+          description: Not authorized (requires author role)
+
+    post:
+      tags: [Author]
+      summary: Create new story (author only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, primary_language]
+              properties:
+                title:
+                  type: string
+                  example: The Lost Sword
+                slug:
+                  type: string
+                  example: the-lost-sword
+                synopsis:
+                  type: string
+                genre:
+                  type: string
+                  enum: [fantasy, sci-fi, horror, mystery, adventure, romance]
+                cover_url:
+                  type: string
+                primary_language:
+                  type: string
+                  enum: [hu, de, en, es, fr]
+                  example: en
+      responses:
+        '201':
+          description: Story created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Story'
+
+  /author/stories/{id}:
+    get:
+      tags: [Author]
+      summary: Get my story details (author only)
+      parameters:
+        - $ref: '#/components/parameters/StoryId'
+      responses:
+        '200':
+          description: Story details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Story'
+        '403':
+          description: Not your story
+
+    put:
+      tags: [Author]
+      summary: Update my story (author only)
+      parameters:
+        - $ref: '#/components/parameters/StoryId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                synopsis:
+                  type: string
+                genre:
+                  type: string
+                cover_url:
+                  type: string
+      responses:
+        '200':
+          description: Story updated
+
+    delete:
+      tags: [Author]
+      summary: Delete my story (author only)
+      parameters:
+        - $ref: '#/components/parameters/StoryId'
+      responses:
+        '204':
+          description: Story deleted
+
+  /author/stories/{id}/publish:
+    post:
+      tags: [Author]
+      summary: Submit story for review (author only)
+      description: Changes status from draft to pending_review
+      parameters:
+        - $ref: '#/components/parameters/StoryId'
+      responses:
+        '200':
+          description: Story submitted for moderation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: pending_review
+
+  /author/stories/{id}/translations:
+    post:
+      tags: [Author]
+      summary: Add story translation (author only)
+      parameters:
+        - $ref: '#/components/parameters/StoryId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [locale, title]
+              properties:
+                locale:
+                  type: string
+                  enum: [hu, de, en, es, fr]
+                  example: de
+                title:
+                  type: string
+                  example: Das verlorene Schwert
+                synopsis:
+                  type: string
+      responses:
+        '201':
+          description: Translation created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryTranslation'
+
+  /author/stories/{id}/translations/{locale}:
+    put:
+      tags: [Author]
+      summary: Update story translation
+      parameters:
+        - $ref: '#/components/parameters/StoryId'
+        - $ref: '#/components/parameters/Locale'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                synopsis:
+                  type: string
+      responses:
+        '200':
+          description: Translation updated
+
+    delete:
+      tags: [Author]
+      summary: Delete story translation
+      parameters:
+        - $ref: '#/components/parameters/StoryId'
+        - $ref: '#/components/parameters/Locale'
+      responses:
+        '204':
+          description: Translation deleted
+
+  /author/stories/{id}/translation-status:
+    get:
+      tags: [Author]
+      summary: Get translation progress
+      parameters:
+        - $ref: '#/components/parameters/StoryId'
+      responses:
+        '200':
+          description: Translation status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranslationStatus'
+
+  /author/nodes:
+    post:
+      tags: [Author]
+      summary: Create node (author only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoryNodeCreate'
+      responses:
+        '201':
+          description: Node created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryNode'
+
+  /author/nodes/{nodeId}:
+    put:
+      tags: [Author]
+      summary: Update node
+      parameters:
+        - $ref: '#/components/parameters/NodeId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoryNodeCreate'
+      responses:
+        '200':
+          description: Node updated
+
+    delete:
+      tags: [Author]
+      summary: Delete node
+      parameters:
+        - $ref: '#/components/parameters/NodeId'
+      responses:
+        '204':
+          description: Node deleted
+
+  /author/nodes/{nodeId}/translations:
+    post:
+      tags: [Author]
+      summary: Add node translation
+      parameters:
+        - $ref: '#/components/parameters/NodeId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [locale, text_md]
+              properties:
+                locale:
+                  type: string
+                  enum: [hu, de, en, es, fr]
+                text_md:
+                  type: string
+                  example: You enter the forest. A cold wind blows...
+                choices_labels:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  example:
+                    to_house: Go to the house
+                    to_cellar: Climb down to the cellar
+      responses:
+        '201':
+          description: Node translation created
+
+  /author/nodes/{nodeId}/translations/{locale}:
+    put:
+      tags: [Author]
+      summary: Update node translation
+      parameters:
+        - $ref: '#/components/parameters/NodeId'
+        - $ref: '#/components/parameters/Locale'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text_md:
+                  type: string
+                choices_labels:
+                  type: object
+                  additionalProperties:
+                    type: string
+      responses:
+        '200':
+          description: Translation updated
+
+    delete:
+      tags: [Author]
+      summary: Delete node translation
+      parameters:
+        - $ref: '#/components/parameters/NodeId'
+        - $ref: '#/components/parameters/Locale'
+      responses:
+        '204':
+          description: Translation deleted
+
+  # ==================== MODERATOR ====================
+  /moderator/pending:
+    get:
+      tags: [Moderator]
+      summary: List pending stories (moderator only)
+      responses:
+        '200':
+          description: Pending stories
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stories:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        story_id:
+                          type: string
+                        title:
+                          type: string
+                        author:
+                          type: string
+                        submitted_at:
+                          type: string
+                          format: date-time
+                        primary_language:
+                          type: string
+                        node_count:
+                          type: integer
+        '403':
+          description: Not authorized (requires moderator role)
+
+  /moderator/stories/{id}/approve:
+    post:
+      tags: [Moderator]
+      summary: Approve story (moderator only)
+      description: Changes status from pending_review to published
+      parameters:
+        - $ref: '#/components/parameters/StoryId'
+      responses:
+        '200':
+          description: Story approved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: published
+
+  /moderator/stories/{id}/reject:
+    post:
+      tags: [Moderator]
+      summary: Reject story (moderator only)
+      description: Changes status from pending_review to draft
+      parameters:
+        - $ref: '#/components/parameters/StoryId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [notes]
+              properties:
+                notes:
+                  type: string
+                  example: Inappropriate content in node 'forest_gate'. Please revise.
+      responses:
+        '200':
+          description: Story rejected
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: draft
+                  notes:
+                    type: string
+
+  # ==================== ADMIN ====================
+  /admin/stories:
+    get:
+      tags: [Admin]
+      summary: List all stories (admin only)
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, pending_review, published, archived]
+      responses:
+        '200':
+          description: All stories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Story'
+
+  /admin/users/{userId}/role:
+    put:
+      tags: [Admin]
+      summary: Update user role (admin only)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role:
+                  type: string
+                  enum: [player, author, admin, moderator]
+      responses:
+        '200':
+          description: Role updated
+
+  # ==================== LOCALIZATION ====================
+  /i18n/locales:
+    get:
+      tags: [Localization]
+      summary: List supported locales
+      security: []
+      responses:
+        '200':
+          description: Supported locales
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    code:
+                      type: string
+                      example: hu
+                    name:
+                      type: string
+                      example: Hungarian
+                    native_name:
+                      type: string
+                      example: Magyar
+
+# ==================== COMPONENTS ====================
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    StoryId:
+      name: id
+      in: path
+      required: true
+      description: Story UUID
+      schema:
+        type: string
+        format: uuid
+
+    NodeId:
+      name: nodeId
+      in: path
+      required: true
+      description: Node UUID
+      schema:
+        type: string
+        format: uuid
+
+    Locale:
+      name: locale
+      in: path
+      required: true
+      description: Language code
+      schema:
+        type: string
+        enum: [hu, de, en, es, fr]
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        display_name:
+          type: string
+        preferred_language:
+          type: string
+          enum: [hu, de, en, es, fr]
+        role:
+          type: string
+          enum: [player, author, admin, moderator]
+        created_at:
+          type: string
+          format: date-time
+
+    Story:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        title:
+          type: string
+        synopsis:
+          type: string
+        genre:
+          type: string
+        cover_url:
+          type: string
+        status:
+          type: string
+          enum: [draft, pending_review, published, archived]
+        created_by:
+          type: string
+          format: uuid
+        primary_language:
+          type: string
+          enum: [hu, de, en, es, fr]
+        available_languages:
+          type: array
+          items:
+            type: string
+        start_node_key:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    StoryListItem:
+      type: object
+      properties:
+        id:
+          type: string
+        slug:
+          type: string
+        title:
+          type: string
+        synopsis:
+          type: string
+        genre:
+          type: string
+        cover_url:
+          type: string
+        available_languages:
+          type: array
+          items:
+            type: string
+        progress_percent:
+          type: integer
+          description: User's completion percentage (if authenticated)
+
+    StoryNode:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        story_id:
+          type: string
+          format: uuid
+        key:
+          type: string
+          example: forest_gate
+        text_md:
+          type: string
+          description: Markdown text content
+        media_ref:
+          type: string
+          description: S3 URL or media reference
+        layout:
+          type: string
+          enum: [image, video, html, audio]
+        dice_checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiceCheck'
+        conditions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Condition'
+        effects:
+          type: array
+          items:
+            $ref: '#/components/schemas/Effect'
+        choices:
+          type: array
+          items:
+            $ref: '#/components/schemas/Choice'
+        is_terminal:
+          type: boolean
+
+    StoryNodeCreate:
+      type: object
+      required: [story_id, key, text_md]
+      properties:
+        story_id:
+          type: string
+          format: uuid
+        key:
+          type: string
+        text_md:
+          type: string
+        media_ref:
+          type: string
+        layout:
+          type: string
+          enum: [image, video, html, audio]
+        dice_checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiceCheck'
+        conditions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Condition'
+        effects:
+          type: array
+          items:
+            $ref: '#/components/schemas/Effect'
+        choices:
+          type: array
+          items:
+            $ref: '#/components/schemas/Choice'
+        is_terminal:
+          type: boolean
+
+    Choice:
+      type: object
+      properties:
+        id:
+          type: string
+          example: to_house
+        label:
+          type: string
+          example: Go to the house
+        target:
+          type: string
+          example: house_front
+          description: Target node key
+        conditions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Condition'
+        effects:
+          type: array
+          items:
+            $ref: '#/components/schemas/Effect'
+
+    Condition:
+      type: object
+      description: Condition for choice/node availability
+      properties:
+        expr:
+          type: string
+          example: '{">=": [{"var": "wallet.balance"}, 5]}'
+          description: JSONLogic expression
+        type:
+          type: string
+          enum: [has_item, wallet, stat, flag, node_visited]
+        key:
+          type: string
+        op:
+          type: string
+          enum: ['>=', '<=', '==', '>', '<']
+        value:
+          oneOf:
+            - type: number
+            - type: boolean
+            - type: string
+
+    Effect:
+      type: object
+      description: Effect applied to game state
+      discriminator:
+        propertyName: type
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [wallet, item, stat, hp, flag, variable, status_effect]
+      oneOf:
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [wallet]
+            op:
+              type: string
+              enum: ['+', '-']
+            value:
+              type: number
+            reason:
+              type: string
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [item]
+            op:
+              type: string
+              enum: [add, remove]
+            key:
+              type: string
+            qty:
+              type: integer
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [stat, hp]
+            key:
+              type: string
+              description: Stat key (knowledge, dexterity, strength, luck)
+            op:
+              type: string
+              enum: ['+', '-', '=']
+            value:
+              type: number
+
+    DiceCheck:
+      type: object
+      properties:
+        id:
+          type: string
+          example: trap_aware
+        when:
+          type: string
+          enum: [onEnter, onChoice]
+        formula:
+          type: string
+          example: 1d20+dexterity
+          description: Dice formula (XdY+Z or XdY+STAT)
+        dc:
+          type: integer
+          example: 14
+          description: Difficulty class
+        success:
+          type: object
+          properties:
+            log:
+              type: string
+            effects:
+              type: array
+              items:
+                $ref: '#/components/schemas/Effect'
+        fail:
+          type: object
+          properties:
+            log:
+              type: string
+            effects:
+              type: array
+              items:
+                $ref: '#/components/schemas/Effect'
+
+    PlayState:
+      type: object
+      properties:
+        node:
+          $ref: '#/components/schemas/StoryNode'
+        state:
+          type: object
+          properties:
+            user_id:
+              type: string
+            story_id:
+              type: string
+            current_node_key:
+              type: string
+            inventory:
+              type: array
+              items:
+                type: object
+                properties:
+                  key:
+                    type: string
+                  name:
+                    type: string
+                  qty:
+                    type: integer
+            wallet:
+              type: object
+              properties:
+                balance:
+                  type: number
+                currency:
+                  type: string
+            stats:
+              type: object
+              properties:
+                hp:
+                  type: integer
+                max_hp:
+                  type: integer
+                knowledge:
+                  type: integer
+                  description: Intelligence stat
+                dexterity:
+                  type: integer
+                strength:
+                  type: integer
+                luck:
+                  type: integer
+            flags:
+              type: object
+              additionalProperties:
+                type: boolean
+            variables:
+              type: object
+              additionalProperties: true
+            history:
+              type: array
+              items:
+                type: string
+            status_effects:
+              type: array
+              items:
+                type: object
+                properties:
+                  key:
+                    type: string
+                  type:
+                    type: string
+                    enum: [poison, buff, debuff]
+                  duration:
+                    type: integer
+                  effects:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Effect'
+        fallback:
+          type: boolean
+          description: True if content is displayed in fallback language
+        fallback_warning:
+          type: string
+          example: Content not available in German, showing English
+
+    RollResult:
+      type: object
+      properties:
+        formula:
+          type: string
+          example: 2d6+3
+        rolls:
+          type: array
+          items:
+            type: integer
+          example: [4, 5]
+        modifier:
+          type: integer
+          example: 3
+        total:
+          type: integer
+          example: 12
+        seed:
+          type: string
+          description: RNG seed for verification
+
+    SaveSlot:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slot:
+          type: integer
+          minimum: 0
+          maximum: 3
+        node_key:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    StoryTranslation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        story_id:
+          type: string
+          format: uuid
+        locale:
+          type: string
+          enum: [hu, de, en, es, fr]
+        title:
+          type: string
+        synopsis:
+          type: string
+        translation_status:
+          type: string
+          enum: [incomplete, complete]
+        translated_by:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+
+    TranslationStatus:
+      type: object
+      properties:
+        story_id:
+          type: string
+        primary_language:
+          type: string
+        translations:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              story_meta:
+                type: string
+                enum: [incomplete, complete]
+              nodes:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                  translated:
+                    type: integer
+                  incomplete:
+                    type: integer
+                  completion_percent:
+                    type: integer
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+
+  responses:
+    BadRequest:
+      description: Bad request - validation error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              details:
+                type: array
+                items:
+                  type: object
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: Resource not found
+
+    Forbidden:
+      description: Forbidden - insufficient permissions
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: Forbidden
