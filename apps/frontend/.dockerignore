@@ -1,0 +1,39 @@
+# Dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Next.js
+.next
+out
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Tests
+coverage
+**/*.spec.ts
+**/*.test.tsx
+__tests__
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+README.md
+
+# Misc
+.DS_Store
+*.log
