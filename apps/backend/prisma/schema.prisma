@@ -1,0 +1,381 @@
+// CYOA Adventure Platform - Prisma Schema
+// Multi-language, community-driven interactive story platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== ENUMS ====================
+
+enum UserRole {
+  player      // Játékos (csak játszik)
+  author      // Szerző/Kalandíró (készít + játszik)
+  admin       // Admin (minden jog)
+  moderator   // Moderátor (tartalomjóváhagyás)
+}
+
+enum StoryStatus {
+  draft           // Tervezet (csak szerző látja)
+  pending_review  // Moderációra vár
+  published       // Publikus (mindenki látja)
+  archived        // Archivált
+}
+
+enum TranslationStatus {
+  incomplete  // Fordítás folyamatban
+  complete    // Fordítás kész
+}
+
+enum ModerationStatus {
+  pending    // Jóváhagyásra vár
+  approved   // Jóváhagyva
+  rejected   // Elutasítva
+}
+
+enum StatusEffectType {
+  poison  // Mérgezés
+  buff    // Pozitív hatás
+  debuff  // Negatív hatás
+}
+
+enum MediaLayout {
+  image  // Kép
+  video  // Videó
+  html   // HTML (minijáték)
+  audio  // Audió
+}
+
+// ==================== MODELS ====================
+
+// 1. Users (Felhasználók)
+model User {
+  id                  String   @id @default(uuid()) @db.Uuid
+  email               String   @unique @db.VarChar(255)
+  display_name        String?  @db.VarChar(100)
+  pw_hash             String   @db.VarChar(255)
+  preferred_language  String   @default("hu") @db.VarChar(5)
+  role                UserRole @default(player)
+
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+  last_login          DateTime?
+
+  flags               Json     @default("{}") @db.JsonB
+  is_active           Boolean  @default(true)
+
+  // Relations
+  stories_created     Story[]                    @relation("StoryAuthor")
+  story_translations  StoryTranslation[]         @relation("Translator")
+  node_translations   NodeTranslation[]          @relation("NodeTranslator")
+  user_inventory      UserInventory[]
+  wallets             Wallet[]
+  wallet_tx           WalletTransaction[]
+  saves               Save[]
+  rolls               Roll[]
+  minigame_scores     MinigameScore[]
+  moderation_author   ContentModeration[]        @relation("ModerationAuthor")
+  moderation_reviewer ContentModeration[]        @relation("ModerationReviewer")
+
+  @@index([email])
+  @@index([role])
+  @@index([preferred_language])
+  @@map("users")
+}
+
+// 2. Stories (Történetek)
+model Story {
+  id                  String      @id @default(uuid()) @db.Uuid
+  slug                String      @unique @db.VarChar(100)
+  title               String      @db.VarChar(255)
+  synopsis            String?     @db.Text
+  genre               String?     @db.VarChar(50)
+  cover_url           String?     @db.VarChar(500)
+  status              StoryStatus @default(draft)
+  version             Int         @default(1)
+
+  created_by          String      @db.Uuid
+  primary_language    String      @default("hu") @db.VarChar(5)
+  available_languages String[]    @default(["hu"])
+
+  created_at          DateTime    @default(now())
+  updated_at          DateTime    @updatedAt
+
+  metadata            Json        @default("{}") @db.JsonB
+
+  // Relations
+  author              User                    @relation("StoryAuthor", fields: [created_by], references: [id])
+  nodes               StoryNode[]
+  translations        StoryTranslation[]
+  inventory_items     InventoryItem[]
+  minigames           Minigame[]
+  wallets             Wallet[]
+  saves               Save[]
+  moderation          ContentModeration?
+
+  @@index([slug])
+  @@index([status])
+  @@index([genre])
+  @@index([created_by])
+  @@index([primary_language])
+  @@index([available_languages], type: Gin)
+  @@map("stories")
+}
+
+// 3. Story Nodes (Csomópontok)
+model StoryNode {
+  id          String      @id @default(uuid()) @db.Uuid
+  story_id    String      @db.Uuid
+  key         String      @db.VarChar(100)
+  text_md     String      @db.Text
+  media_ref   String?     @db.VarChar(500)
+  layout      MediaLayout @default(image)
+
+  dice_checks Json        @default("[]") @db.JsonB
+  conditions  Json        @default("[]") @db.JsonB
+  effects     Json        @default("[]") @db.JsonB
+  choices     Json        @default("[]") @db.JsonB
+
+  is_terminal Boolean     @default(false)
+
+  created_at  DateTime    @default(now())
+  updated_at  DateTime    @updatedAt
+
+  // Relations
+  story       Story              @relation(fields: [story_id], references: [id], onDelete: Cascade)
+  translations NodeTranslation[]
+
+  @@unique([story_id, key])
+  @@index([story_id])
+  @@index([story_id, key])
+  @@index([story_id, is_terminal])
+  @@map("story_nodes")
+}
+
+// 4. Story Translations (Történet Fordítások)
+model StoryTranslation {
+  id                  String            @id @default(uuid()) @db.Uuid
+  story_id            String            @db.Uuid
+  locale              String            @db.VarChar(5)
+  title               String            @db.VarChar(255)
+  synopsis            String?           @db.Text
+  translation_status  TranslationStatus @default(incomplete)
+  translated_by       String?           @db.Uuid
+
+  created_at          DateTime          @default(now())
+  updated_at          DateTime          @updatedAt
+
+  // Relations
+  story               Story             @relation(fields: [story_id], references: [id], onDelete: Cascade)
+  translator          User?             @relation("Translator", fields: [translated_by], references: [id])
+
+  @@unique([story_id, locale])
+  @@index([story_id, locale])
+  @@index([story_id, translation_status])
+  @@map("story_translations")
+}
+
+// 5. Node Translations (Node Fordítások)
+model NodeTranslation {
+  id                  String            @id @default(uuid()) @db.Uuid
+  node_id             String            @db.Uuid
+  locale              String            @db.VarChar(5)
+  text_md             String            @db.Text
+  choices_labels      Json?             @db.JsonB
+  translation_status  TranslationStatus @default(incomplete)
+  translated_by       String?           @db.Uuid
+
+  created_at          DateTime          @default(now())
+  updated_at          DateTime          @updatedAt
+
+  // Relations
+  node                StoryNode         @relation(fields: [node_id], references: [id], onDelete: Cascade)
+  translator          User?             @relation("NodeTranslator", fields: [translated_by], references: [id])
+
+  @@unique([node_id, locale])
+  @@index([node_id, locale])
+  @@map("node_translations")
+}
+
+// 6. Inventory Items (Tárgy definíciók)
+model InventoryItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  story_id    String   @db.Uuid
+  key         String   @db.VarChar(100)
+  name        String   @db.VarChar(255)
+  description String?  @db.Text
+  rarity      String   @default("common") @db.VarChar(20)
+  stackable   Boolean  @default(true)
+  icon_url    String?  @db.VarChar(500)
+
+  meta        Json     @default("{}") @db.JsonB
+  created_at  DateTime @default(now())
+
+  // Relations
+  story       Story    @relation(fields: [story_id], references: [id], onDelete: Cascade)
+
+  @@unique([story_id, key])
+  @@index([story_id])
+  @@map("inventory_items")
+}
+
+// 7. User Inventory (Játékos inventory)
+model UserInventory {
+  id          String   @id @default(uuid()) @db.Uuid
+  user_id     String   @db.Uuid
+  story_id    String   @db.Uuid
+  item_key    String   @db.VarChar(100)
+  qty         Int      @default(1)
+  acquired_at DateTime @default(now())
+
+  // Relations
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, story_id, item_key])
+  @@index([user_id, story_id])
+  @@map("user_inventory")
+}
+
+// 8. Wallets (Pénztárcák)
+model Wallet {
+  id         String   @id @default(uuid()) @db.Uuid
+  user_id    String   @db.Uuid
+  story_id   String   @db.Uuid
+  balance    Decimal  @default(0) @db.Decimal(15, 2)
+  currency   String   @default("gold") @db.VarChar(20)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // Relations
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  story      Story    @relation(fields: [story_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, story_id])
+  @@index([user_id, story_id])
+  @@map("wallets")
+}
+
+// 9. Wallet Transactions (Tranzakciók)
+model WalletTransaction {
+  id         String   @id @default(uuid()) @db.Uuid
+  user_id    String   @db.Uuid
+  story_id   String   @db.Uuid
+  amount     Decimal  @db.Decimal(15, 2)
+  reason     String?  @db.VarChar(255)
+  node_key   String?  @db.VarChar(100)
+  created_at DateTime @default(now())
+
+  // Relations
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, story_id])
+  @@index([created_at])
+  @@map("wallet_tx")
+}
+
+// 10. Saves (Mentések)
+model Save {
+  id            String   @id @default(uuid()) @db.Uuid
+  user_id       String   @db.Uuid
+  story_id      String   @db.Uuid
+  slot          Int      @default(0)
+  node_key      String   @db.VarChar(100)
+  snapshot_json Json     @db.JsonB
+  created_at    DateTime @default(now())
+
+  // Relations
+  user          User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  story         Story    @relation(fields: [story_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, story_id, slot])
+  @@index([user_id, story_id])
+  @@index([user_id, story_id, slot])
+  @@map("saves")
+}
+
+// 11. Rolls (Dobások)
+model Roll {
+  id         String   @id @default(uuid()) @db.Uuid
+  user_id    String   @db.Uuid
+  story_id   String   @db.Uuid
+  node_key   String   @db.VarChar(100)
+  formula    String   @db.VarChar(50)
+  result     Int
+  seed       String?  @db.VarChar(64)
+  metadata   Json     @default("{}") @db.JsonB
+  created_at DateTime @default(now())
+
+  // Relations
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, story_id])
+  @@index([story_id, node_key])
+  @@index([created_at])
+  @@map("rolls")
+}
+
+// 12. Minigames (Minijáték definíciók)
+model Minigame {
+  id                String   @id @default(uuid()) @db.Uuid
+  story_id          String   @db.Uuid
+  key               String   @db.VarChar(100)
+  title             String   @db.VarChar(255)
+  entry_url         String   @db.VarChar(500)
+  scoring_contract  Json     @db.JsonB
+  allowed_origins   String[]
+  created_at        DateTime @default(now())
+
+  // Relations
+  story             Story    @relation(fields: [story_id], references: [id], onDelete: Cascade)
+
+  @@unique([story_id, key])
+  @@index([story_id])
+  @@map("minigames")
+}
+
+// 13. Minigame Scores (Minijáték eredmények)
+model MinigameScore {
+  id             String   @id @default(uuid()) @db.Uuid
+  user_id        String   @db.Uuid
+  story_id       String   @db.Uuid
+  game_key       String   @db.VarChar(100)
+  score          Int
+  signature      String   @db.VarChar(255)
+  mapped_effects Json     @default("[]") @db.JsonB
+  created_at     DateTime @default(now())
+
+  // Relations
+  user           User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, story_id])
+  @@index([story_id, game_key])
+  @@index([created_at])
+  @@map("minigame_scores")
+}
+
+// 14. Content Moderation (Tartalommoderálás)
+model ContentModeration {
+  id            String            @id @default(uuid()) @db.Uuid
+  story_id      String            @unique @db.Uuid
+  author_id     String            @db.Uuid
+  status        ModerationStatus  @default(pending)
+  moderator_id  String?           @db.Uuid
+  notes         String?           @db.Text
+  submitted_at  DateTime          @default(now())
+  reviewed_at   DateTime?
+  created_at    DateTime          @default(now())
+
+  // Relations
+  story         Story             @relation(fields: [story_id], references: [id], onDelete: Cascade)
+  author        User              @relation("ModerationAuthor", fields: [author_id], references: [id])
+  moderator     User?             @relation("ModerationReviewer", fields: [moderator_id], references: [id])
+
+  @@index([status])
+  @@index([story_id])
+  @@map("content_moderation")
+}
