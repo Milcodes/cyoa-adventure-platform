@@ -15,7 +15,7 @@ export class AnalyticsService {
     ] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.story.count(),
-      this.prisma.gameSave.count(),
+      this.prisma.save.count(),
       this.prisma.user.count({
         where: {
           created_at: {
@@ -69,12 +69,8 @@ export class AnalyticsService {
     // Get stories with most game saves (indicating popularity)
     const popularStories = await this.prisma.story.findMany({
       where: { status: 'published' },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        genre: true,
-        created_by: {
+      include: {
+        author: {
           select: {
             id: true,
             display_name: true,
@@ -82,12 +78,12 @@ export class AnalyticsService {
         },
         _count: {
           select: {
-            game_saves: true,
+            saves: true,
           },
         },
       },
       orderBy: {
-        game_saves: {
+        saves: {
           _count: 'desc',
         },
       },
@@ -95,14 +91,20 @@ export class AnalyticsService {
     });
 
     return popularStories.map((story) => ({
-      ...story,
-      play_count: story._count.game_saves,
-      _count: undefined,
+      id: story.id,
+      title: story.title,
+      synopsis: story.synopsis,
+      genre: story.genre,
+      created_by: {
+        id: story.author.id,
+        display_name: story.author.display_name,
+      },
+      play_count: story._count.saves,
     }));
   }
 
   async getStoryStats(storyId: string) {
-    const [story, playCount, completedCount, avgPlaytime] = await Promise.all([
+    const [story, playCount] = await Promise.all([
       this.prisma.story.findUnique({
         where: { id: storyId },
         select: {
@@ -113,20 +115,8 @@ export class AnalyticsService {
           created_at: true,
         },
       }),
-      this.prisma.gameSave.count({
+      this.prisma.save.count({
         where: { story_id: storyId },
-      }),
-      this.prisma.gameSave.count({
-        where: {
-          story_id: storyId,
-          status: 'completed',
-        },
-      }),
-      this.prisma.gameSave.aggregate({
-        where: { story_id: storyId },
-        _avg: {
-          total_play_time_seconds: true,
-        },
       }),
     ]);
 
@@ -134,11 +124,7 @@ export class AnalyticsService {
       story,
       stats: {
         total_plays: playCount,
-        completed_plays: completedCount,
-        completion_rate: playCount > 0 ? (completedCount / playCount) * 100 : 0,
-        avg_playtime_minutes: avgPlaytime._avg.total_play_time_seconds
-          ? Math.round(avgPlaytime._avg.total_play_time_seconds / 60)
-          : 0,
+        unique_players: playCount, // Each save represents a unique player session
       },
     };
   }
@@ -146,10 +132,10 @@ export class AnalyticsService {
   async getActiveUsers(days: number = 7) {
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-    const activeUsers = await this.prisma.gameSave.groupBy({
-      by: ['player_id'],
+    const activeUsers = await this.prisma.save.groupBy({
+      by: ['user_id'],
       where: {
-        updated_at: {
+        created_at: {
           gte: since,
         },
       },
@@ -159,7 +145,7 @@ export class AnalyticsService {
     return {
       period_days: days,
       active_users_count: activeUsers.length,
-      total_sessions: activeUsers.reduce((sum, user) => sum + user._count, 0),
+      total_sessions: activeUsers.reduce((sum, user) => sum + (typeof user._count === 'number' ? user._count : 0), 0),
     };
   }
 }

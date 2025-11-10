@@ -13,6 +13,8 @@ interface GameState {
   updateWallets: (wallets: Record<string, number>) => void
   updateStats: (stats: Record<string, number>) => void
   updateFlags: (flags: Record<string, any>) => void
+  updateGameState: (updates: Partial<Omit<GameState, 'setSaveId' | 'setCurrentStory' | 'updateInventory' | 'updateWallets' | 'updateStats' | 'updateFlags' | 'updateGameState' | 'resetGame' | 'reset'>>) => void
+  resetGame: () => void
   reset: () => void
 }
 
@@ -29,6 +31,15 @@ export const useGameStore = create<GameState>((set) => ({
   updateWallets: (wallets) => set({ wallets }),
   updateStats: (stats) => set({ stats }),
   updateFlags: (flags) => set({ flags }),
+  updateGameState: (updates) => set((state) => ({ ...state, ...updates })),
+  resetGame: () => set({
+    saveId: null,
+    currentStoryId: null,
+    inventory: {},
+    wallets: {},
+    stats: {},
+    flags: {},
+  }),
   reset: () => set({
     saveId: null,
     currentStoryId: null,

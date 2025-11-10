@@ -370,7 +370,9 @@ export default function StoryEditorPage() {
                           </div>
 
                           {story?.start_node_id === node.id && (
-                            <Star className="w-4 h-4 text-yellow-500 flex-shrink-0" title="Kezdő node" />
+                            <span title="Kezdő node">
+                              <Star className="w-4 h-4 text-yellow-500 flex-shrink-0" />
+                            </span>
                           )}
                         </div>
 

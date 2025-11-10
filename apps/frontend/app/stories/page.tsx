@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuthStore } from '@/lib/store/authStore'
 import { apiClient } from '@/lib/api/client'
@@ -42,7 +42,7 @@ const genreNames: Record<string, string> = {
   survival: 'Túlélés'
 }
 
-export default function StoriesPage() {
+function StoriesContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const genre = searchParams.get('genre')
@@ -282,5 +282,17 @@ export default function StoriesPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function StoriesPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen p-6 flex items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin text-primary-500" />
+      </div>
+    }>
+      <StoriesContent />
+    </Suspense>
   )
 }
