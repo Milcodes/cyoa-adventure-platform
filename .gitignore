@@ -59,6 +59,7 @@ logs
 # Uploads & Media
 uploads/
 media/
+!apps/backend/src/api/media/
 public/uploads/
 
 # OS

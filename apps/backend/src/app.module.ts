@@ -8,6 +8,7 @@ import { GameEngineModule } from './api/game-engine/game-engine.module';
 import { GameplayModule } from './api/gameplay/gameplay.module';
 import { StoryModule } from './api/story/story.module';
 import { TranslationModule } from './api/translation/translation.module';
+import { MediaModule } from './api/media/media.module';
 import { JwtAuthGuard, RolesGuard } from './common/guards';
 
 @Module({
@@ -23,6 +24,7 @@ import { JwtAuthGuard, RolesGuard } from './common/guards';
     GameplayModule,
     StoryModule,
     TranslationModule,
+    MediaModule,
   ],
   providers: [
     {
