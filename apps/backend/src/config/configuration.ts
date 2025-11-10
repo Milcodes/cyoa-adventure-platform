@@ -1,5 +1,5 @@
 export default () => ({
-  port: parseInt(process.env.PORT, 10) || 4000,
+  port: parseInt(process.env.PORT || '4000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
   database: {
     url: process.env.DATABASE_URL,
@@ -15,7 +15,7 @@ export default () => ({
   },
   redis: {
     host: process.env.REDIS_HOST || 'localhost',
-    port: parseInt(process.env.REDIS_PORT, 10) || 6379,
+    port: parseInt(process.env.REDIS_PORT || '6379', 10),
   },
   s3: {
     endpoint: process.env.S3_ENDPOINT || 'http://localhost:9000',
@@ -27,7 +27,7 @@ export default () => ({
     secret: process.env.MINIGAME_SECRET,
   },
   rateLimit: {
-    ttl: parseInt(process.env.RATE_LIMIT_TTL, 10) || 60,
-    max: parseInt(process.env.RATE_LIMIT_MAX, 10) || 100,
+    ttl: parseInt(process.env.RATE_LIMIT_TTL || '60', 10),
+    max: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
   },
 });
