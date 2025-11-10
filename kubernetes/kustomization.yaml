@@ -1,0 +1,56 @@
+# Kustomize configuration for easy deployment
+# Deploy with: kubectl apply -k kubernetes/
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: cyoa-platform
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secrets.yaml
+  - postgres-statefulset.yaml
+  - redis-deployment.yaml
+  - minio-deployment.yaml
+  - backend-deployment.yaml
+  - frontend-deployment.yaml
+  - ingress.yaml
+  - network-policy.yaml
+
+# Common labels applied to all resources
+commonLabels:
+  app.kubernetes.io/name: cyoa-platform
+  app.kubernetes.io/version: "1.0.0"
+  app.kubernetes.io/managed-by: kustomize
+
+# Image tag overrides (for different environments)
+images:
+  - name: ghcr.io/yourusername/cyoa-backend
+    newTag: latest
+  - name: ghcr.io/yourusername/cyoa-frontend
+    newTag: latest
+
+# Resource quotas
+patches:
+  - target:
+      kind: Namespace
+      name: cyoa-platform
+    patch: |-
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: cyoa-platform
+      ---
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: compute-quota
+        namespace: cyoa-platform
+      spec:
+        hard:
+          requests.cpu: "10"
+          requests.memory: 20Gi
+          limits.cpu: "20"
+          limits.memory: 40Gi
+          persistentvolumeclaims: "10"

@@ -1,0 +1,364 @@
+{
+	"info": {
+		"_postman_id": "cyoa-platform-api",
+		"name": "CYOA Platform API",
+		"description": "Complete API collection for Choose Your Own Adventure Platform",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{accessToken}}",
+				"type": "string"
+			}
+		]
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:4000/v1",
+			"type": "string"
+		},
+		{
+			"key": "accessToken",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Register",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const response = pm.response.json();",
+									"    pm.collectionVariables.set('accessToken', response.accessToken);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"player@example.com\",\n  \"password\": \"SecurePass123!\",\n  \"display_name\": \"John Doe\",\n  \"preferred_language\": \"en\",\n  \"role\": \"player\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/register",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "register"]
+						}
+					}
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    pm.collectionVariables.set('accessToken', response.accessToken);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"player@example.com\",\n  \"password\": \"SecurePass123!\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "login"]
+						}
+					}
+				},
+				{
+					"name": "Get My Profile",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/auth/me",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "me"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Stories",
+			"item": [
+				{
+					"name": "List Published Stories",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/stories?status=published&genre=adventure",
+							"host": ["{{baseUrl}}"],
+							"path": ["stories"],
+							"query": [
+								{"key": "status", "value": "published"},
+								{"key": "genre", "value": "adventure"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Story by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/stories/:storyId",
+							"host": ["{{baseUrl}}"],
+							"path": ["stories", ":storyId"],
+							"variable": [
+								{"key": "storyId", "value": ""}
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Story",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"My Adventure Story\",\n  \"description\": \"An exciting adventure\",\n  \"genre\": \"adventure\",\n  \"difficulty\": 3,\n  \"estimated_playtime_minutes\": 30\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/stories",
+							"host": ["{{baseUrl}}"],
+							"path": ["stories"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Gameplay",
+			"item": [
+				{
+					"name": "Start Game",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/gameplay/stories/:storyId/start",
+							"host": ["{{baseUrl}}"],
+							"path": ["gameplay", "stories", ":storyId", "start"],
+							"variable": [
+								{"key": "storyId", "value": ""}
+							]
+						}
+					}
+				},
+				{
+					"name": "Make Choice",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"choice_id\": \"\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/gameplay/saves/:saveId/choose",
+							"host": ["{{baseUrl}}"],
+							"path": ["gameplay", "saves", ":saveId", "choose"],
+							"variable": [
+								{"key": "saveId", "value": ""}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get My Saves",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/gameplay/my-saves",
+							"host": ["{{baseUrl}}"],
+							"path": ["gameplay", "my-saves"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Moderation",
+			"item": [
+				{
+					"name": "Get Pending Stories",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/moderation/pending",
+							"host": ["{{baseUrl}}"],
+							"path": ["moderation", "pending"]
+						}
+					}
+				},
+				{
+					"name": "Review Story",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"approved\",\n  \"notes\": \"Great story!\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/moderation/:moderationId/review",
+							"host": ["{{baseUrl}}"],
+							"path": ["moderation", ":moderationId", "review"],
+							"variable": [
+								{"key": "moderationId", "value": ""}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Analytics",
+			"item": [
+				{
+					"name": "System Overview",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/analytics/overview",
+							"host": ["{{baseUrl}}"],
+							"path": ["analytics", "overview"]
+						}
+					}
+				},
+				{
+					"name": "Popular Stories",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/analytics/stories/popular?limit=10",
+							"host": ["{{baseUrl}}"],
+							"path": ["analytics", "stories", "popular"],
+							"query": [
+								{"key": "limit", "value": "10"}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Health",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/health",
+							"host": ["{{baseUrl}}"],
+							"path": ["health"]
+						}
+					}
+				},
+				{
+					"name": "Readiness Check",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/health/ready",
+							"host": ["{{baseUrl}}"],
+							"path": ["health", "ready"]
+						}
+					}
+				},
+				{
+					"name": "Liveness Check",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/health/live",
+							"host": ["{{baseUrl}}"],
+							"path": ["health", "live"]
+						}
+					}
+				}
+			]
+		}
+	]
+}
