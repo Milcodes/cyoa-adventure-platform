@@ -360,17 +360,38 @@ Részletes dokumentáció a `docs/` könyvtárban:
 - Integration: API endpoints, database operations
 - E2E: Critical user journeys (registration, gameplay, admin)
 
-## 🎯 MVP Scope (v1.0)
+## 🎯 MVP Scope (v1.0) - Version B
 
+### Core Features
 - [x] Felhasználó regisztráció/bejelentkezés
+- [x] **Szerepkörök**: Játékos, Szerző/Kalandíró, Admin, Moderátor
 - [x] Story böngészés csempés UI-on
 - [x] Játékmotor: szöveg, média, választások, feltételek, hatások
 - [x] Inventory és pénz rendszer
 - [x] Dice roll mechanika
 - [x] Mentés/betöltés (auto + 3 slot)
-- [x] Admin: Story/Node CRUD, JSON editor
 - [x] Média feltöltés (S3)
 - [x] 1 demo minijáték (iframe)
+
+### Szerzői/Creator Platform ✨
+- [x] **Szerzői szerepkör** engedélyezése
+- [x] Saját történetek készítése és publikálása
+- [x] **Nyelvi csomagkezelés** (story + node fordítások)
+- [x] **Nyelvválasztó menü** a fejlécben
+- [x] Elsődleges nyelv kiválasztása
+- [x] Opcionális fordítások hozzáadása
+- [x] Fordítási státusz nyomon követése
+
+### Moderációs Rendszer
+- [x] Publikálás előtti **tartalomellenőrzés**
+- [x] Moderátor szerepkör és dashboard
+- [x] Jóváhagyás/elutasítás workflow
+
+### Admin CMS
+- [x] Story/Node CRUD, JSON editor
+- [x] Szerzők jogosultságainak kezelése
+- [x] **Fordító nézet** (kulcsonkénti fordítás)
+- [x] Preview funkció (bármely nyelven)
 
 ## 🗺️ Roadmap
 

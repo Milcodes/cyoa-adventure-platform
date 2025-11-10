@@ -20,17 +20,18 @@ CREATE TABLE users (
     email VARCHAR(255) UNIQUE NOT NULL,
     display_name VARCHAR(100),
     pw_hash VARCHAR(255) NOT NULL,
-    locale VARCHAR(5) DEFAULT 'hu',
+    preferred_language VARCHAR(5) DEFAULT 'hu', -- Preferált nyelv
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
     last_login TIMESTAMP,
     flags JSONB DEFAULT '{}'::JSONB,
     is_active BOOLEAN DEFAULT true,
-    role VARCHAR(20) DEFAULT 'player' -- player, admin, moderator
+    role VARCHAR(20) DEFAULT 'player' -- player, author, admin, moderator
 );
 
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_role ON users(role);
+CREATE INDEX idx_users_preferred_language ON users(preferred_language);
 ```
 
 **Mezők:**
@@ -38,9 +39,13 @@ CREATE INDEX idx_users_role ON users(role);
 - `email`: Email cím (login)
 - `display_name`: Megjelenített név
 - `pw_hash`: Bcrypt jelszó hash
-- `locale`: Nyelvi beállítás (hu/de/en)
+- `preferred_language`: Felhasználó preferált nyelve (hu/de/en/es/fr)
 - `flags`: Egyéni flagek JSON-ben (achievements, preferences, stb.)
 - `role`: Felhasználói szerep
+  - **player**: Játékos (játszik)
+  - **author**: Szerző/Kalandíró (készít + játszik)
+  - **admin**: Adminisztrátor (minden jog)
+  - **moderator**: Moderátor (tartalomjóváhagyás)
 
 ---
 
@@ -50,13 +55,15 @@ CREATE INDEX idx_users_role ON users(role);
 CREATE TABLE stories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     slug VARCHAR(100) UNIQUE NOT NULL,
-    title VARCHAR(255) NOT NULL,
+    title VARCHAR(255) NOT NULL, -- Alapnyelvi cím
     synopsis TEXT,
     genre VARCHAR(50), -- fantasy, sci-fi, horror, mystery, etc.
     cover_url VARCHAR(500),
-    status VARCHAR(20) DEFAULT 'draft', -- draft, published, archived
+    status VARCHAR(20) DEFAULT 'draft', -- draft, pending_review, published, archived
     version INTEGER DEFAULT 1,
-    created_by UUID REFERENCES users(id),
+    created_by UUID REFERENCES users(id), -- Szerző (author szerepkör)
+    primary_language VARCHAR(5) DEFAULT 'hu', -- Elsődleges nyelv
+    available_languages TEXT[] DEFAULT ARRAY['hu'], -- Elérhető nyelvek
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
     metadata JSONB DEFAULT '{}'::JSONB -- extra fields: difficulty, estimated_time, tags
@@ -66,14 +73,23 @@ CREATE INDEX idx_stories_slug ON stories(slug);
 CREATE INDEX idx_stories_status ON stories(status);
 CREATE INDEX idx_stories_genre ON stories(genre);
 CREATE INDEX idx_stories_created_by ON stories(created_by);
+CREATE INDEX idx_stories_primary_language ON stories(primary_language);
+CREATE INDEX idx_stories_available_languages ON stories USING GIN(available_languages);
 ```
 
 **Mezők:**
 - `slug`: URL-friendly egyedi azonosító
-- `title`: Történet címe
+- `title`: Történet címe (alapnyelven)
 - `synopsis`: Rövid leírás
 - `genre`: Műfaj
-- `status`: Státusz (draft/published/archived)
+- `status`: Státusz
+  - **draft**: Tervezet (csak a szerző látja)
+  - **pending_review**: Moderációra vár
+  - **published**: Publikus (mindenki látja)
+  - **archived**: Archivált
+- `created_by`: Szerző azonosítója
+- `primary_language`: Elsődleges nyelv (pl. 'hu', 'de', 'en')
+- `available_languages`: Elérhető nyelvek tömbje
 - `metadata`: Extra adatok (nehézség, becsült időtartam, címkék)
 
 ---
@@ -359,6 +375,106 @@ CREATE INDEX idx_minigame_scores_user_story ON minigame_scores(user_id, story_id
 CREATE INDEX idx_minigame_scores_game_key ON minigame_scores(story_id, game_key);
 CREATE INDEX idx_minigame_scores_created_at ON minigame_scores(created_at);
 ```
+
+---
+
+### 12. Story Translations (Történet Fordítások) **[ÚJ - Version B]**
+
+```sql
+CREATE TABLE story_translations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    story_id UUID REFERENCES stories(id) ON DELETE CASCADE,
+    locale VARCHAR(5) NOT NULL, -- hu, de, en, es, fr, stb.
+    title VARCHAR(255) NOT NULL,
+    synopsis TEXT,
+    translation_status VARCHAR(20) DEFAULT 'incomplete', -- incomplete, complete
+    translated_by UUID REFERENCES users(id), -- Ki fordította
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(story_id, locale)
+);
+
+CREATE INDEX idx_story_translations_story_locale ON story_translations(story_id, locale);
+CREATE INDEX idx_story_translations_status ON story_translations(story_id, translation_status);
+```
+
+**Mezők:**
+- `story_id`: Melyik történethez tartozik
+- `locale`: Nyelv kód (pl. 'de', 'en', 'es')
+- `title`: Lefordított cím
+- `synopsis`: Lefordított leírás
+- `translation_status`: Fordítás státusza (incomplete/complete)
+- `translated_by`: Ki készítette a fordítást
+
+---
+
+### 13. Node Translations (Node Fordítások) **[ÚJ - Version B]**
+
+```sql
+CREATE TABLE node_translations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    node_id UUID REFERENCES story_nodes(id) ON DELETE CASCADE,
+    locale VARCHAR(5) NOT NULL,
+    text_md TEXT NOT NULL, -- Fordított szöveg
+    choices_labels JSONB, -- {choice_id: "Fordított label"}
+    translation_status VARCHAR(20) DEFAULT 'incomplete',
+    translated_by UUID REFERENCES users(id),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(node_id, locale)
+);
+
+CREATE INDEX idx_node_translations_node_locale ON node_translations(node_id, locale);
+```
+
+**choices_labels példa:**
+```json
+{
+  "to_house": "Zum Haus gehen",
+  "to_cellar": "In den Keller gehen"
+}
+```
+
+**Mezők:**
+- `node_id`: Melyik node-hoz tartozik
+- `locale`: Nyelv kód
+- `text_md`: Lefordított markdown szöveg
+- `choices_labels`: Választások fordításai (JSON)
+- `translation_status`: Fordítás státusza
+- `translated_by`: Fordító
+
+---
+
+### 14. Content Moderation (Tartalommoderálás) **[ÚJ - Version B]**
+
+```sql
+CREATE TABLE content_moderation (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    story_id UUID REFERENCES stories(id) ON DELETE CASCADE,
+    author_id UUID REFERENCES users(id),
+    status VARCHAR(20) DEFAULT 'pending', -- pending, approved, rejected
+    moderator_id UUID REFERENCES users(id),
+    notes TEXT, -- Moderátor megjegyzései
+    submitted_at TIMESTAMP DEFAULT NOW(),
+    reviewed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_moderation_status ON content_moderation(status);
+CREATE INDEX idx_moderation_story ON content_moderation(story_id);
+```
+
+**Mezők:**
+- `story_id`: Moderációra váró történet
+- `author_id`: Szerző
+- `status`: Moderációs státusz
+  - **pending**: Jóváhagyásra vár
+  - **approved**: Jóváhagyva (→ published)
+  - **rejected**: Elutasítva (visszakerül szerzőhöz)
+- `moderator_id`: Melyik moderátor bírálta el
+- `notes`: Moderátor megjegyzései (mi a probléma, miért lett elutasítva)
+- `submitted_at`: Mikor küldték moderációra
+- `reviewed_at`: Mikor lett elbírálva
 
 ---
 
